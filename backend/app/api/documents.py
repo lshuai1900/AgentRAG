@@ -114,9 +114,13 @@ async def upload_document(
             vectors = embedder.embed_batch([c.text for c in chunks])
         except Exception as e:
             log.exception(f"Embedding 调用失败: doc_id={doc.id}")
+            # 把异常类型透传到前端,方便定位 (敏感信息已在 _sanitize_error 中处理)
+            err_type = type(e).__name__
+            err_msg = str(e)[:200]
             raise ValueError(
-                "Embedding 接口调用失败,请检查 DASHSCOPE_API_KEY 是否正确配置 "
-                f"或网络是否可达 (详情见后端日志)"
+                f"Embedding 调用失败 [{err_type}]: {err_msg}. "
+                f"请检查 DASHSCOPE_API_KEY 是否正确、网络是否可达、"
+                f"模型名 {settings.dashscope_embedding_model} 是否在 DashScope 已开通"
             ) from e
 
         # 4. 入库 Milvus

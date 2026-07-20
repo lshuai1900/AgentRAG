@@ -27,6 +27,11 @@ async def lifespan(app: FastAPI):
     log.info(f"LLM Provider: {settings.llm_provider}")
     log.info(f"Chat Model: {settings.chat_model}")
     log.info(f"Embedding Model: {settings.dashscope_embedding_model} (dim={settings.embedding_dimension})")
+    if not settings.dashscope_api_key:
+        log.warning(
+            "⚠️ DASHSCOPE_API_KEY 未配置! 文档上传与问答都会失败,"
+            "请在 .env 中设置阿里 DashScope API Key"
+        )
     log.info(f"Chunk size: {settings.chunk_size}, overlap: {settings.chunk_overlap}")
     log.info(f"Top K: {settings.top_k}")
     log.info(
