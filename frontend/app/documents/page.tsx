@@ -51,10 +51,28 @@ export default function DocumentsPage() {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "上传失败");
+
+      // 先取原始文本,避免后端返回非 JSON 时抛 "Unexpected token"
+      const responseText = await res.text();
+      let data: any = {};
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(
+            `后端返回异常(HTTP ${res.status})：${responseText.slice(0, 300)}`
+          );
+        }
       }
+
+      if (!res.ok) {
+        throw new Error(
+          data.detail ||
+            data.message ||
+            `上传失败(HTTP ${res.status})`
+        );
+      }
+
       await fetchDocs();
     } catch (e: any) {
       setError(e.message);
@@ -146,7 +164,7 @@ export default function DocumentsPage() {
               id="file-upload"
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.docx,.doc,.md,.markdown"
+              accept=".pdf,.docx,.md,.markdown"
               className="hidden"
               onChange={handleUpload}
               disabled={uploading}

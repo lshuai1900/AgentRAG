@@ -4,7 +4,6 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,8 +18,19 @@ from ..retrieval.vector_store import get_milvus
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
-# 允许的文件扩展名
-ALLOWED_EXTS = {"pdf", "docx", "doc", "md", "markdown"}
+# 允许的文件扩展名 (.doc 旧版格式不支持,需提示用户转换为 .docx)
+ALLOWED_EXTS = {"pdf", "docx", "md", "markdown"}
+
+
+def _sanitize_error(msg: str) -> str:
+    """脱敏错误信息,避免向前端暴露 API Key/密码/DSN 等敏感信息"""
+    import re
+
+    # 屏蔽 Bearer xxx / sk-xxx / password=xxx 等
+    msg = re.sub(r"(Bearer\s+)[A-Za-z0-9_\-]+", r"\1***", msg)
+    msg = re.sub(r"(sk-[A-Za-z0-9]{6})[A-Za-z0-9]*", r"\1***", msg)
+    msg = re.sub(r"(://[^:\s]+:)[^@\s]+(@)", r"\1***\2", msg)
+    return msg
 
 
 @router.post("/upload")
@@ -34,16 +44,41 @@ async def upload_document(
 
     file_type = detect_file_type(file.filename)
     if file_type is None:
-        raise HTTPException(status_code=400, detail=f"不支持的文件类型,仅支持: {ALLOWED_EXTS}")
+        # 对 .doc 给出明确提示
+        ext = Path(file.filename).suffix.lower().lstrip(".")
+        if ext == "doc":
+            raise HTTPException(
+                status_code=400,
+                detail="暂不支持旧版 .doc 格式,请先在 Word 中另存为 .docx 后再上传",
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型 .{ext},仅支持: pdf / docx / md",
+        )
 
     # 保存到 /data/uploads
     upload_dir = Path(settings.data_dir) / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     file_path = upload_dir / file.filename
-    with file_path.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        with file_path.open("wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except Exception as e:
+        log.exception(f"保存上传文件失败: {file.filename}")
+        raise HTTPException(status_code=500, detail=f"保存文件失败: {e}") from e
+    finally:
+        await file.close()
+
     file_size = file_path.stat().st_size
     log.info(f"文件已保存: {file_path} ({file_size} bytes)")
+
+    # 空文件检查
+    if file_size == 0:
+        try:
+            file_path.unlink()
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="文件为空,无法处理")
 
     # 创建文档记录
     doc = Document(
@@ -70,15 +105,29 @@ async def upload_document(
         chunks = split_pages(pages, doc_id=doc.id, source=doc.filename)
         log.info(f"切分完成: {len(chunks)} 个 chunks")
         if not chunks:
-            raise ValueError("文档切分后无可用 chunks")
+            raise ValueError("文档切分后无可用 chunks (可能内容过短或为空白)")
 
         # 3. embedding
-        embedder = get_embedder()
-        vectors = embedder.embed_batch([c.text for c in chunks])
+        try:
+            embedder = get_embedder()
+            vectors = embedder.embed_batch([c.text for c in chunks])
+        except Exception as e:
+            log.exception(f"Embedding 调用失败: doc_id={doc.id}")
+            raise ValueError(
+                "Embedding 接口调用失败,请检查 DASHSCOPE_API_KEY 是否正确配置 "
+                f"或网络是否可达 (详情见后端日志)"
+            ) from e
 
         # 4. 入库 Milvus
-        milvus = get_milvus()
-        milvus.insert_chunks(chunks, vectors)
+        try:
+            milvus = get_milvus()
+            milvus.insert_chunks(chunks, vectors)
+        except Exception as e:
+            log.exception(f"Milvus 写入失败: doc_id={doc.id}")
+            raise ValueError(
+                "向量库写入失败,请确认 Milvus 服务已启动 "
+                "(docker compose ps 查看 milvus-standalone 状态)"
+            ) from e
 
         # 5. 更新状态
         doc.chunk_count = len(chunks)
@@ -95,15 +144,25 @@ async def upload_document(
             "status": doc.status,
             "created_at": doc.created_at.isoformat(),
         }
-    except Exception as e:
-        log.exception(f"文档处理失败: id={doc.id}")
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # 用户可理解的错误 (解析失败/切分失败/embedding 配置等)
+        log.warning(f"文档处理失败 (业务错误): id={doc.id}, err={e}")
         doc.status = "failed"
         doc.error_msg = str(e)
         db.commit()
-        return JSONResponse(
+        raise HTTPException(status_code=400, detail=_sanitize_error(str(e))) from e
+    except Exception as e:
+        # 未预期错误,完整堆栈进日志,前端只看到脱敏后的简短信息
+        log.exception(f"文档处理失败 (未预期): id={doc.id}")
+        doc.status = "failed"
+        doc.error_msg = str(e)
+        db.commit()
+        raise HTTPException(
             status_code=500,
-            content={"detail": f"文档处理失败: {e}", "doc_id": doc.id},
-        )
+            detail=_sanitize_error(f"文档处理失败: {e}"),
+        ) from e
 
 
 @router.get("")
