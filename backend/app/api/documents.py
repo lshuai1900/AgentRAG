@@ -14,6 +14,7 @@ from ..ingestion.parser import detect_file_type, parse_document
 from ..ingestion.splitter import split_pages
 from ..logger import log
 from ..models import Document
+from ..retrieval.orchestrator import rebuild_bm25_index
 from ..retrieval.vector_store import get_milvus
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -113,9 +114,13 @@ async def upload_document(
             vectors = embedder.embed_batch([c.text for c in chunks])
         except Exception as e:
             log.exception(f"Embedding 调用失败: doc_id={doc.id}")
+            # 把异常类型透传到前端,方便定位 (敏感信息已在 _sanitize_error 中处理)
+            err_type = type(e).__name__
+            err_msg = str(e)[:200]
             raise ValueError(
-                "Embedding 接口调用失败,请检查 DASHSCOPE_API_KEY 是否正确配置 "
-                f"或网络是否可达 (详情见后端日志)"
+                f"Embedding 调用失败 [{err_type}]: {err_msg}. "
+                f"请检查 DASHSCOPE_API_KEY 是否正确、网络是否可达、"
+                f"模型名 {settings.dashscope_embedding_model} 是否在 DashScope 已开通"
             ) from e
 
         # 4. 入库 Milvus
@@ -134,6 +139,13 @@ async def upload_document(
         doc.status = "ready"
         db.commit()
         log.info(f"文档处理完成: id={doc.id}, chunks={doc.chunk_count}")
+
+        # 6. 触发 BM25 索引重建 (异步执行可后续优化,当前同步重建)
+        if settings.enable_bm25:
+            try:
+                rebuild_bm25_index()
+            except Exception as e:
+                log.warning(f"BM25 索引重建失败 (不影响向量检索): {e}")
 
         return {
             "id": doc.id,
@@ -209,6 +221,14 @@ def delete_document(doc_id: int, db: Session = Depends(get_db)):
     db.delete(doc)
     db.commit()
     log.info(f"文档已删除: id={doc_id}")
+
+    # 4. 触发 BM25 索引重建
+    if settings.enable_bm25:
+        try:
+            rebuild_bm25_index()
+        except Exception as e:
+            log.warning(f"BM25 索引重建失败 (不影响向量检索): {e}")
+
     return {"detail": "已删除", "doc_id": doc_id}
 
 

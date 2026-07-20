@@ -153,6 +153,35 @@ class MilvusStore:
         collection.delete(expr=f"doc_id == {doc_id}")
         log.info(f"已删除 doc_id={doc_id} 的所有 chunks")
 
+    def list_all_chunks(self, doc_ids: list[int] | None = None) -> list[dict]:
+        """列出所有 chunks (供 BM25 重建索引用)
+
+        Args:
+            doc_ids: 限定文档 ID (None 表示全部)
+
+        Returns:
+            chunks: [{"id", "text", "doc_id", "chunk_idx", "page", "source"}]
+        """
+        collection = self.get_collection()
+        expr = f"doc_id in {doc_ids}" if doc_ids else None
+        results = collection.query(
+            expr=expr,
+            output_fields=[TEXT_FIELD, DOC_ID_FIELD, CHUNK_IDX_FIELD, PAGE_FIELD, SOURCE_FIELD],
+            limit=16384,  # 单次最多取 16k 条,后续如需可分页
+        )
+        chunks = []
+        for r in results:
+            chunks.append({
+                "id": r.get("id"),
+                "text": r.get(TEXT_FIELD, ""),
+                "doc_id": r.get(DOC_ID_FIELD),
+                "chunk_idx": r.get(CHUNK_IDX_FIELD),
+                "page": r.get(PAGE_FIELD),
+                "source": r.get(SOURCE_FIELD, ""),
+            })
+        log.info(f"从 Milvus 读取 {len(chunks)} 条 chunks 用于 BM25 索引")
+        return chunks
+
 
 _store: MilvusStore | None = None
 
