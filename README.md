@@ -21,7 +21,7 @@
 | 缓存 | Redis 7 |
 | 前端 | Next.js 14 + TypeScript + Tailwind CSS |
 | LLM | DeepSeek `deepseek-chat` (默认) / OpenAI |
-| Embedding | OpenAI `text-embedding-3-small` (1536 维) |
+| Embedding | 阿里 DashScope `text-embedding-v3` (1024 维) |
 | 部署 | Docker Compose 一键启动 |
 
 ## 目录结构
@@ -54,10 +54,10 @@
 
 ```bash
 cp .env.example .env
-# 编辑 .env,填入 DEEPSEEK_API_KEY 和 OPENAI_API_KEY
+# 编辑 .env,填入 DEEPSEEK_API_KEY 和 DASHSCOPE_API_KEY
 ```
 
-> DeepSeek 暂无 Embedding API，故 Embedding 使用 OpenAI。
+> DeepSeek 用于对话;阿里 DashScope 用于 embedding (text-embedding-v3, 1024 维)。
 > 如需完全本地，可在 `app/ingestion/embedder.py` 替换为本地模型 (如 `bge-large-zh-v1.1`)。
 
 ### 2. 启动服务
@@ -113,8 +113,10 @@ docker compose ps
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `LLM_PROVIDER` | `deepseek` | LLM 提供方 |
-| `DEEPSEEK_API_KEY` | - | DeepSeek API Key |
-| `OPENAI_API_KEY` | - | OpenAI API Key (用于 embedding) |
+| `DEEPSEEK_API_KEY` | - | DeepSeek API Key (对话) |
+| `DASHSCOPE_API_KEY` | - | 阿里 DashScope API Key (embedding) |
+| `DASHSCOPE_EMBEDDING_MODEL` | `text-embedding-v3` | Embedding 模型 |
+| `EMBEDDING_DIMENSION` | `1024` | Embedding 维度 |
 | `CHUNK_SIZE` | `500` | 切分块大小 (字符) |
 | `CHUNK_OVERLAP` | `80` | 切分块重叠 |
 | `TOP_K` | `5` | 检索 top-K |

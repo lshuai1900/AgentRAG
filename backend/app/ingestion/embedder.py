@@ -1,4 +1,4 @@
-"""Embedding 客户端 (OpenAI 兼容接口)"""
+"""Embedding 客户端 (阿里 DashScope OpenAI 兼容接口)"""
 from typing import Sequence
 
 from openai import OpenAI
@@ -9,15 +9,15 @@ from ..logger import log
 
 
 class Embedder:
-    """OpenAI 兼容 Embedding 客户端"""
+    """Embedding 客户端 - 走 DashScope OpenAI 兼容协议"""
 
     def __init__(self):
-        # 用 OpenAI 的 key 和 endpoint (DeepSeek 暂不支持 embedding)
+        # DashScope 提供 OpenAI 兼容接口,可直接复用 openai SDK
         self.client = OpenAI(
-            api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
         )
-        self.model = settings.openai_embedding_model
+        self.model = settings.dashscope_embedding_model
         self.dimension = settings.embedding_dimension
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
