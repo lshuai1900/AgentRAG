@@ -1,13 +1,23 @@
 """FastAPI 应用入口"""
+import re
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api import api_router
 from .config import settings
 from .db import init_db
 from .logger import log
+
+
+def _sanitize_error(msg: str) -> str:
+    """脱敏错误信息,避免向前端暴露 API Key/密码/DSN 等敏感信息"""
+    msg = re.sub(r"(Bearer\s+)[A-Za-z0-9_\-]+", r"\1***", msg)
+    msg = re.sub(r"(sk-[A-Za-z0-9]{6})[A-Za-z0-9]*", r"\1***", msg)
+    msg = re.sub(r"(://[^:\s]+:)[^@\s]+(@)", r"\1***\2", msg)
+    return msg
 
 
 @asynccontextmanager
@@ -57,6 +67,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# 全局异常处理器:保证任何未捕获异常都返回合法 JSON,而非纯文本 "Internal Server Error"
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    log.exception(f"未捕获异常: {request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": _sanitize_error(f"服务器内部错误: {exc}")},
+    )
+
 
 # 注册路由
 app.include_router(api_router)

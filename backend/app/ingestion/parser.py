@@ -5,7 +5,7 @@ from typing import Optional
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 
-from .logger import log
+from ..logger import log
 
 
 def parse_pdf(file_path: str) -> tuple[str, list[dict]]:
@@ -15,7 +15,10 @@ def parse_pdf(file_path: str) -> tuple[str, list[dict]]:
         full_text: 全文拼接
         pages: [{"page": 1, "text": "..."}]
     """
-    reader = PdfReader(file_path)
+    try:
+        reader = PdfReader(file_path)
+    except Exception as e:
+        raise ValueError(f"PDF 解析失败,文件可能损坏或非标准 PDF: {e}") from e
     pages = []
     parts = []
     for i, page in enumerate(reader.pages, start=1):
@@ -29,7 +32,10 @@ def parse_pdf(file_path: str) -> tuple[str, list[dict]]:
 
 def parse_docx(file_path: str) -> tuple[str, list[dict]]:
     """解析 Word docx"""
-    doc = DocxDocument(file_path)
+    try:
+        doc = DocxDocument(file_path)
+    except Exception as e:
+        raise ValueError(f"DOCX 解析失败,文件可能损坏或非标准 .docx: {e}") from e
     pages = []
     parts = []
     current_page = 1
@@ -54,7 +60,6 @@ def parse_markdown(file_path: str) -> tuple[str, list[dict]]:
 PARSERS = {
     "pdf": parse_pdf,
     "docx": parse_docx,
-    "doc": parse_docx,
     "md": parse_markdown,
     "markdown": parse_markdown,
 }
@@ -72,16 +77,27 @@ def parse_document(file_path: str) -> tuple[str, list[dict]]:
     ext = Path(file_path).suffix.lower().lstrip(".")
     parser = PARSERS.get(ext)
     if parser is None:
+        if ext == "doc":
+            raise ValueError(
+                "暂不支持旧版 .doc 格式,请先转换为 .docx 后上传 "
+                "(Word 中另存为 .docx,或使用在线转换工具)"
+            )
         raise ValueError(f"暂不支持的文件类型: .{ext} (支持 pdf/docx/md)")
 
     log.info(f"开始解析文档: {file_path} (类型: {ext})")
     full_text, pages = parser(file_path)
+
+    if not full_text.strip():
+        raise ValueError("文档解析结果为空,可能为扫描件 PDF 或空白文档")
+    if not pages:
+        raise ValueError("文档解析后无有效页内容")
+
     log.info(f"解析完成: 共 {len(pages)} 页, {len(full_text)} 字符")
     return full_text, pages
 
 
 def detect_file_type(filename: str) -> Optional[str]:
-    """从文件名推断类型"""
+    """从文件名推断类型 (注意: .doc 不被支持,需提示用户转换)"""
     ext = Path(filename).suffix.lower().lstrip(".")
     if ext in PARSERS:
         return ext
