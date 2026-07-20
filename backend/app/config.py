@@ -14,10 +14,11 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_chat_model: str = "deepseek-chat"
 
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_embedding_model: str = "text-embedding-3-small"
-    embedding_dimension: int = 1536
+    # ===== Embedding (阿里 DashScope) =====
+    dashscope_api_key: str = ""
+    dashscope_base_url: str = "https://dashscope.aliy.com/compatible-mode/v1"
+    dashscope_embedding_model: str = "text-embedding-v3"
+    embedding_dimension: int = 1024
 
     # ===== DB =====
     postgres_user: str = "rag"
@@ -43,15 +44,15 @@ class Settings(BaseSettings):
 
     @property
     def chat_model(self) -> str:
-        return self.deepseek_chat_model if self.llm_provider == "deepseek" else "gpt-4o-mini"
+        return self.deepseek_chat_model
 
     @property
     def chat_api_key(self) -> str:
-        return self.deepseek_api_key if self.llm_provider == "deepseek" else self.openai_api_key
+        return self.deepseek_api_key
 
     @property
     def chat_base_url(self) -> str:
-        return self.deepseek_base_url if self.llm_provider == "deepseek" else self.openai_base_url
+        return self.deepseek_base_url
 
     @property
     def postgres_dsn(self) -> str:

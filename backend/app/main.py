@@ -16,7 +16,7 @@ async def lifespan(app: FastAPI):
     log.info(f"=== RAG Backend 启动 ===")
     log.info(f"LLM Provider: {settings.llm_provider}")
     log.info(f"Chat Model: {settings.chat_model}")
-    log.info(f"Embedding Model: {settings.openai_embedding_model} (dim={settings.embedding_dimension})")
+    log.info(f"Embedding Model: {settings.dashscope_embedding_model} (dim={settings.embedding_dimension})")
     log.info(f"Chunk size: {settings.chunk_size}, overlap: {settings.chunk_overlap}")
     log.info(f"Top K: {settings.top_k}")
     log.info(f"Data dir: {settings.data_dir}")
@@ -69,7 +69,7 @@ def health():
         "status": "ok",
         "llm_provider": settings.llm_provider,
         "chat_model": settings.chat_model,
-        "embedding_model": settings.openai_embedding_model,
+        "embedding_model": settings.dashscope_embedding_model,
     }
 
 
