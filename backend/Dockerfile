@@ -1,13 +1,21 @@
 FROM python:3.11-slim
 
+ENV PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_CACHE_DIR=1
+
 WORKDIR /app
 
 # 系统依赖 (unstructured/pypdf 等需要)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    poppler-utils \
-    libreoffice-writer \
+RUN sed -i \
+    's|http://deb.debian.org|http://mirrors.cloud.tencent.com|g' \
+    /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential \
+       libpq-dev \
+       poppler-utils \
+    ibreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
