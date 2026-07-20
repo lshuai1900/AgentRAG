@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # ===== Embedding (阿里 DashScope) =====
     dashscope_api_key: str = ""
-    dashscope_base_url: str = "https://dashscope.aliy.com/compatible-mode/v1"
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     dashscope_embedding_model: str = "text-embedding-v3"
     embedding_dimension: int = 1024
 
