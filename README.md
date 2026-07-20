@@ -5,7 +5,7 @@
 ## 功能特性
 
 - **多格式文档**：PDF / Word (.docx) / Markdown
-- **混合检索**：向量检索 (Milvus) + BM25 关键词召回 (M2 阶段) + RRF 融合 + Rerank
+- **混合检索**：向量检索 (Milvus) + BM25 关键词召回 + RRF 融合 + Rerank 重排 (均可开关)
 - **流式响应**：SSE 流式输出，打字机效果
 - **引用溯源**：每条回答附带引用，可点击查看原文片段
 - **Web UI**：Next.js 14 完整界面，含文档管理与对话页
@@ -35,7 +35,7 @@
 │   │   ├── models.py       # SQLAlchemy 模型
 │   │   ├── db.py           # 数据库
 │   │   ├── ingestion/      # 文档摄入 (parser/splitter/embedder)
-│   │   ├── retrieval/      # 检索 (vector_store)
+│   │   ├── retrieval/      # 检索 (vector_store/bm25/rrf/rerank/orchestrator)
 │   │   ├── generation/     # 生成 (llm/prompt)
 │   │   └── api/            # API 路由 (documents/chat)
 │   └── Dockerfile
@@ -88,7 +88,7 @@ docker compose ps
 ## 里程碑
 
 - [x] **M1**：项目脚手架 + 单文档摄入 + 单轮问答
-- [ ] **M2**：BM25 混合检索 + RRF 融合 + Rerank
+- [x] **M2**：BM25 混合检索 + RRF 融合 + Rerank 重排
 - [ ] **M3**：引用溯源前端交互完善 + 流式响应优化
 - [ ] **M4**：多知识库管理 + 异步摄入 + 评估指标
 
@@ -119,7 +119,12 @@ docker compose ps
 | `EMBEDDING_DIMENSION` | `1024` | Embedding 维度 |
 | `CHUNK_SIZE` | `500` | 切分块大小 (字符) |
 | `CHUNK_OVERLAP` | `80` | 切分块重叠 |
-| `TOP_K` | `5` | 检索 top-K |
+| `TOP_K` | `5` | 最终返回给 LLM 的 chunks 数量 |
+| `ENABLE_BM25` | `true` | 是否启用 BM25 关键词召回 + RRF 融合 |
+| `ENABLE_RERANK` | `false` | 是否启用 Rerank 重排 (DashScope `gte-rerank-v2`) |
+| `RERANK_MODEL` | `gte-rerank-v2` | Rerank 模型 |
+| `RETRIEVAL_TOP_K` | `20` | 向量/BM25 各路召回数量 (融合前) |
+| `RRF_K` | `60` | RRF 平滑常数 |
 
 ## 本地开发 (不用 Docker)
 

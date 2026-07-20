@@ -13,7 +13,7 @@ from ..generation.prompt import build_messages
 from ..ingestion.embedder import get_embedder
 from ..logger import log
 from ..models import ChatMessage, ChatSession
-from ..retrieval.vector_store import get_milvus
+from ..retrieval.orchestrator import retrieve
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -36,13 +36,17 @@ def ask(req: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
 
-    # 1. 检索
+    # 1. 检索 (向量召回 + 可选 BM25 + RRF + Rerank)
     log.info(f"用户提问: {req.question[:80]}...")
     embedder = get_embedder()
     query_vec = embedder.embed(req.question)
 
-    milvus = get_milvus()
-    hits = milvus.search(query_vec, top_k=req.top_k, doc_ids=req.doc_ids)
+    hits = retrieve(
+        query=req.question,
+        query_vector=query_vec,
+        top_k=req.top_k,
+        doc_ids=req.doc_ids,
+    )
 
     # 2. 生成
     messages = build_messages(req.question, hits)
@@ -101,11 +105,16 @@ async def stream_answer(req: ChatRequest, db: Session = Depends(get_db)):
 
     log.info(f"[stream] 用户提问: {req.question[:80]}...")
 
-    # 1. 检索
+    # 1. 检索 (向量召回 + 可选 BM25 + RRF + Rerank)
     embedder = get_embedder()
     query_vec = embedder.embed(req.question)
-    milvus = get_milvus()
-    hits = milvus.search(query_vec, top_k=req.top_k, doc_ids=req.doc_ids)
+
+    hits = retrieve(
+        query=req.question,
+        query_vector=query_vec,
+        top_k=req.top_k,
+        doc_ids=req.doc_ids,
+    )
 
     citations = [
         {

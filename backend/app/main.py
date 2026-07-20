@@ -29,6 +29,10 @@ async def lifespan(app: FastAPI):
     log.info(f"Embedding Model: {settings.dashscope_embedding_model} (dim={settings.embedding_dimension})")
     log.info(f"Chunk size: {settings.chunk_size}, overlap: {settings.chunk_overlap}")
     log.info(f"Top K: {settings.top_k}")
+    log.info(
+        f"Retrieval: bm25={settings.enable_bm25}, rerank={settings.enable_rerank}, "
+        f"retrieval_top_k={settings.retrieval_top_k}, rrf_k={settings.rrf_k}"
+    )
     log.info(f"Data dir: {settings.data_dir}")
 
     # 初始化数据库表

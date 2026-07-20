@@ -40,7 +40,14 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     chunk_size: int = 500
     chunk_overlap: int = 80
-    top_k: int = 5
+    top_k: int = 5  # 最终返回给 LLM 的 chunks 数量
+
+    # ===== 检索策略 (M2) =====
+    enable_bm25: bool = True  # 是否启用 BM25 关键词召回 + RRF 融合
+    enable_rerank: bool = False  # 是否启用 Rerank 重排 (默认关闭,需要额外 API 调用)
+    rerank_model: str = "gte-rerank-v2"  # DashScope rerank 模型
+    retrieval_top_k: int = 20  # 向量/BM25 各路召回数量 (融合前)
+    rrf_k: int = 60  # RRF 平滑常数
 
     @property
     def chat_model(self) -> str:
